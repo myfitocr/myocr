@@ -1,6 +1,7 @@
 package com.example.myfit;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.RecyclerView;
 
 import android.content.ClipData;
 import android.content.Intent;
@@ -17,7 +18,7 @@ public class PantsActivity extends AppCompatActivity {
     ArrayList<SizeClass> sizeClasses=new ArrayList<>();
     ArrayList<String> items=new ArrayList<>();
     private String text;
-    ArrayList<SizeClass> biggerSize=new ArrayList<>();
+    RecyclerView recyclerView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -30,11 +31,10 @@ public class PantsActivity extends AppCompatActivity {
         Bundle bundle=i.getExtras();
         sizeClasses= (ArrayList<SizeClass>) bundle.get("sizeInfo");
 
-        for (int j=0;j<biggerSize.size();j++){
-            items.add(biggerSize.get(j).getSizeName());
+        for (int j=0;j<sizeClasses.size();j++){
+            items.add(sizeClasses.get(j).getSizeName());
         }
 
-        setspinner(sizeSpinner,items);
     }
 
     public String setspinner(final Spinner spinner,ArrayList<String> items){
