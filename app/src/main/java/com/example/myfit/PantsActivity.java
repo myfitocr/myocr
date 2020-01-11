@@ -30,8 +30,8 @@ public class PantsActivity extends AppCompatActivity {
         Bundle bundle=i.getExtras();
         sizeClasses= (ArrayList<SizeClass>) bundle.get("sizeInfo");
 
-        for (int j=0;j<biggerSize.size();j++){
-            items.add(biggerSize.get(j).getSizeName());
+        for (int j=0;j<sizeClasses.size();j++){
+            items.add(sizeClasses.get(j).getSizeName());
         }
 
         setspinner(sizeSpinner,items);
