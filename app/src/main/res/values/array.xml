@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="size_array">
+        <item name="size0"></item>
+        <item name="size1"></item>
+        <item name="size2"></item>
+        <item name="size3"></item>
+        <item name="size4"></item>
+        <item name="size5"></item>
+        <item name="size6"></item>
+        <item name="size7"></item>
+        <item name="size8"></item>
+        <item name="size9"></item>
+    </string-array>
+
+</resources>
