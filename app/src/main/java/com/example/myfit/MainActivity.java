@@ -28,6 +28,7 @@ public class MainActivity extends AppCompatActivity {
                 createFloatingWidget(v);
             }
         });
+
     }
 
     /*  start floating widget service  */
