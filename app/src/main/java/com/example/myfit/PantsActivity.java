@@ -18,13 +18,14 @@ public class PantsActivity extends AppCompatActivity {
     ArrayList<SizeClass> sizeClasses=new ArrayList<>();
     ArrayList<String> items=new ArrayList<>();
     private String text;
+
     RecyclerView recyclerView;
+    ReSizeAdapter reSizeAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_pants);
-        final Spinner sizeSpinner=findViewById(R.id.sizeSpinner);
 
         //ocrActivity에서 사이즈 정보 받아오기
         Intent i=getIntent();
@@ -34,25 +35,11 @@ public class PantsActivity extends AppCompatActivity {
         for (int j=0;j<sizeClasses.size();j++){
             items.add(sizeClasses.get(j).getSizeName());
         }
+        System.out.println("itemNumber"+items.size());
 
-    }
-
-    public String setspinner(final Spinner spinner,ArrayList<String> items){
-        ArrayList<String> items_1 = items;
-        ArrayAdapter myadapter = new ArrayAdapter<>(this,R.layout.support_simple_spinner_dropdown_item,items_1);
-        spinner.setAdapter(myadapter);
-        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-
-            }
-        });
-        //spinner 값 받아오는 부분 다시 짜기
-        return text;
+        //리사이클러 뷰 어댑터
+        recyclerView=findViewById(R.id.size_recycler);
+        reSizeAdapter=new ReSizeAdapter(getApplicationContext(),items);
+        recyclerView.setAdapter(reSizeAdapter);
     }
 }
