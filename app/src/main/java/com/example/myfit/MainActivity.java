@@ -1,142 +1,122 @@
 package com.example.myfit;
 
-import androidx.appcompat.app.AppCompatActivity;
-
-import android.content.Context;
+import android.Manifest;
 import android.content.Intent;
-import android.content.res.AssetManager;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
-import android.os.Message;
-import android.util.Size;
-import android.widget.TextView;
+import android.provider.Settings;
+import android.view.View;
+import android.widget.Button;
+import android.widget.ImageView;
+import android.widget.Toast;
 
-import com.googlecode.tesseract.android.TessBaseAPI;
-
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.util.ArrayList;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
-    TessBaseAPI tess;
-    String dataPath = "";
-    ArrayList<SizeClass> sizeClasses=new ArrayList<>();
-    SizeClass sizeClass;
 
+    Button createbtn;
+
+    String[] permission_list = {
+            Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            Manifest.permission.READ_EXTERNAL_STORAGE,
+            //Manifest.permission.FOREGROUND_SERVICE,
+    };
+
+    private static final int DRAW_OVER_OTHER_APP_PERMISSION_REQUEST_CODE = 1222;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        dataPath = getFilesDir() + "/tesseract/";
-        checkFile(new File(dataPath+"tessdata/"),"kor");
-        checkFile(new File(dataPath+"tessdata/"),"eng");
+        checkPermission();
 
-        String lang = "kor+eng";
-        tess = new TessBaseAPI();
-        tess.init(dataPath,lang);
-        Bitmap bitmap = BitmapFactory.decodeResource(getResources(),R.drawable.test_13);
-        bitmap = ARGBBitmap(bitmap);
-        processImage(bitmap);
+        createbtn = findViewById(R.id.create);
+        createbtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                createFloatingWidget(v);
+            }
+        });
+        ImageView imageView = findViewById(R.id.imageView);
+        Intent intent_1 = getIntent();
+        Bitmap bitmap = intent_1.getParcelableExtra("image");
+        imageView.setImageBitmap(bitmap);
     }
 
-    public void processImage(Bitmap bitmap){
-        String result = null;
-        tess.setImage(bitmap);
-        result = tess.getUTF8Text();
-        TextView textView = findViewById(R.id.text);
-        textView.setText(result);
 
-        String target="보세요\n";
-        int target_num=result.indexOf(target);
-        String size;
-        size= result.substring(target_num+4);
 
-        char endOfSize=getEndOfSize(size);
-        int endOfSize_num=size.indexOf(endOfSize);
-        String getSize=size.substring(0,endOfSize_num);
-        sizeClasses=getSizeInfo(getSize);
-        Intent intent=new Intent(getApplicationContext(),PantsActivity.class);
-        intent.putExtra("sizeInfo",sizeClasses);
-        startActivity(intent);
+    /*  start floating widget service  */
+    public void createFloatingWidget(View view) {
+        //Check if the application has draw over other apps permission or not?
+        //This permission is by default available for API<23. But for API > 23
+        //you have to ask for the permission in runtime.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            //If the draw over permission is not available open the settings screen
+            //to grant the permission. 권한을 받기 위한 부분
+            Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName()));
+            startActivityForResult(intent, DRAW_OVER_OTHER_APP_PERMISSION_REQUEST_CODE);
+        } else
+            //If permission is granted start floating widget service
+            startFloatingWidgetService();
+
     }
 
-    private char getEndOfSize(String size){
-        for(char c:size.toCharArray()){
-            if (c>=32 && c<=126 || c==10){
-            }else {
-                return c;
+    /*  Start Floating widget service and finish current activity */
+    private void startFloatingWidgetService() {
+        startService(new Intent(MainActivity.this, FloatingWidgetService.class));
+        finish();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == DRAW_OVER_OTHER_APP_PERMISSION_REQUEST_CODE) {
+            //Check if the permission is granted or not.
+            if (resultCode == RESULT_OK)
+                //If permission granted start floating widget service
+                startFloatingWidgetService();
+            /**else
+                //Permission is not available then display toast
+                Toast.makeText(this,
+                        getResources().getString(R.string.draw_other_app_permission_denied),
+                        Toast.LENGTH_SHORT).show();*/
+
+        } else {
+            super.onActivityResult(requestCode, resultCode, data);
+        }
+    }
+    public void checkPermission(){
+        //현재 안드로이드 버전이 6.0미만이면 메서드를 종료한다.
+        if(Build.VERSION.SDK_INT < Build.VERSION_CODES.M)
+            return;
+
+        for(String permission : permission_list){
+            //권한 허용 여부를 확인한다.
+            int chk = checkCallingOrSelfPermission(permission);
+
+            if(chk == PackageManager.PERMISSION_DENIED){
+                //권한 허용을여부를 확인하는 창을 띄운다
+                requestPermissions(permission_list,0);
             }
         }
-        return 0;
     }
 
-    private ArrayList<SizeClass> getSizeInfo(String getSize){
-        String[] array=getSize.split("\n");
-        String[] getType=array[0].split(" ");
-
-        if(getType.length==6){//바지
-            for(int i=0;i<array.length;i++){
-                String[] getSizeInfo=array[i].split(" ");
-                sizeClass=new SizeClass(getSizeInfo[0]);
-
-                ArrayList<Float> info=new ArrayList<>();
-                for(int j=1;j<getSizeInfo.length;j++){
-                    Float size=Float.parseFloat(getSizeInfo[j]);
-                    if(size>110.0){
-                        size=size/10;
-                    }
-                    info.add(size);
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if(requestCode==0)
+        {
+            for(int i=0; i<grantResults.length; i++)
+            {
+                if(grantResults[i]!= PackageManager.PERMISSION_GRANTED) {
+                    Toast.makeText(getApplicationContext(),"앱권한설정하세요", Toast.LENGTH_LONG).show();
                 }
-
-                sizeClass.setSizeInfo(info);
-                sizeClasses.add(sizeClass);
             }
         }
-        return sizeClasses;
-    }
-
-    private void checkFile(File dir,String lang){
-        if(!dir.exists()&&dir.mkdirs()){
-            copyFiles(lang);
-        }
-        if(dir.exists()){
-            String datafilePath = dataPath + "/tessdata/"+lang + ".traineddata";
-            File datafile= new File(datafilePath);
-            if(!datafile.exists()){
-                copyFiles(lang);
-            }
-        }
-    }
-
-    private void copyFiles(String lang) {
-        try {
-            String filepath = dataPath + "/tessdata/" + lang + ".traineddata";
-            AssetManager assetManager = getAssets();
-            InputStream instream = assetManager.open("tessdata/"+lang+".traineddata");
-            OutputStream outstream = new FileOutputStream(filepath);
-            byte[] buffer = new byte[1024];
-            int read;
-            while ((read = instream.read(buffer)) != -1) {
-                outstream.write(buffer, 0, read);
-            }
-            outstream.flush();
-            outstream.close();
-            instream.close();
-
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private Bitmap ARGBBitmap(Bitmap img) {
-        return img.copy(Bitmap.Config.ARGB_8888,true);
     }
 }

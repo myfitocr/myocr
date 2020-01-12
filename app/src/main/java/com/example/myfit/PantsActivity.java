@@ -5,14 +5,22 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import android.content.ClipData;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.AssetManager;
+import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.media.Image;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.ParcelFileDescriptor;
+import android.provider.MediaStore;
 import android.util.Log;
 import android.util.Size;
 import android.view.Gravity;
@@ -29,11 +37,23 @@ import android.widget.TableRow;
 import android.widget.TextView;
 
 import com.google.android.material.tabs.TabLayout;
+import com.googlecode.tesseract.android.TessBaseAPI;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 
 public class PantsActivity extends AppCompatActivity implements CompoundButton.OnCheckedChangeListener {
-    ArrayList<SizeClass> sizeClasses = new ArrayList<>();
+    TessBaseAPI tess;
+    String dataPath = "";
+    ArrayList<SizeClass> sizeClasses=new ArrayList<>();
+    SizeClass sizeClass;
+
+    //ArrayList<SizeClass> sizeClasses = new ArrayList<>();
     ArrayList<String> items = new ArrayList<>();
     ArrayList<CheckBox> checkBoxes = new ArrayList<>();
 
@@ -44,15 +64,68 @@ public class PantsActivity extends AppCompatActivity implements CompoundButton.O
     ArrayList<SizeClass> unchangedSize = new ArrayList<>();
     ArrayList<SizeClass> checkedSize = new ArrayList<>();
 
+    Bitmap b;
+
+    public static final BitmapFactory.Options options = new BitmapFactory.Options();
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_pants);
 
-        //ocrActivity에서 사이즈 정보 받아오기
-        Intent i = getIntent();
-        Bundle bundle = i.getExtras();
-        sizeClasses = (ArrayList<SizeClass>) bundle.get("sizeInfo");
+        dataPath = getFilesDir() + "/tesseract/";
+        checkFile(new File(dataPath+"tessdata/"),"kor");
+        checkFile(new File(dataPath+"tessdata/"),"eng");
+
+        String lang = "kor+eng";
+        tess = new TessBaseAPI();
+        tess.init(dataPath,lang);
+
+        Uri uri_1 = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+        String[] projection = {MediaStore.Images.Media._ID};
+        ContentResolver res = getApplicationContext().getContentResolver();
+        Cursor imageCursor = getContentResolver().query(uri_1, projection, null, null, null);
+        if(imageCursor.moveToLast()){
+            do {
+                Uri photoUri = Uri.withAppendedPath(uri_1, imageCursor.getString(0));
+                //photoUri = MediaStore.setRequireOriginal(photoUri);
+                if (photoUri != null) {
+                    ParcelFileDescriptor fd = null;
+                    try {
+                        fd = res.openFileDescriptor(photoUri, "r");
+
+                        //크기를 얻어오기 위한옵션 ,
+                        //inJustDecodeBounds값이 true로 설정되면 decoder가 bitmap object에 대해 메모리를 할당하지 않고, 따라서 bitmap을 반환하지도 않는다.
+                        // 다만 options fields는 값이 채워지기 때문에 Load 하려는 이미지의 크기를 포함한 정보들을 얻어올 수 있다.
+
+                        options.inJustDecodeBounds = true;
+                        BitmapFactory.decodeFileDescriptor(
+                                fd.getFileDescriptor(), null, options);
+                        int scale = 0;
+                        options.inJustDecodeBounds = false;
+                        options.inSampleSize = scale;
+
+                        b = BitmapFactory.decodeFileDescriptor(
+                                fd.getFileDescriptor(), null, options);
+
+                        if (b != null) {
+                            // finally rescale to exactly the size we need
+                        }
+
+                    } catch (FileNotFoundException e) {
+                    } finally {
+                        try {
+                            if (fd != null)
+                                fd.close();
+                        } catch (IOException e) {
+                        }
+                    }
+                }
+            }while (imageCursor.moveToNext());
+        }
+
+        b = ARGBBitmap(b);
+        sizeClasses=processImage(b);
 
         for (int j = 0; j < sizeClasses.size(); j++) {
             items.add(sizeClasses.get(j).getSizeName());
@@ -144,6 +217,98 @@ public class PantsActivity extends AppCompatActivity implements CompoundButton.O
         linearLayout.removeAllViews();
         ViewEx viewEx = new ViewEx(getApplicationContext(),checkedSize);
         linearLayout.addView(viewEx);
+    }
+
+    public ArrayList<SizeClass> processImage(Bitmap bitmap){
+        String result = null;
+        tess.setImage(bitmap);
+        result = tess.getUTF8Text();
+
+        String target="보세요\n";
+        int target_num=result.indexOf(target);
+        String size;
+        size= result.substring(target_num+4);
+
+        char endOfSize=getEndOfSize(size);
+        int endOfSize_num=size.indexOf(endOfSize);
+        String getSize=size.substring(0,endOfSize_num);
+        sizeClasses=getSizeInfo(getSize);
+
+        return sizeClasses;
+    }
+
+    private char getEndOfSize(String size){
+        for(char c:size.toCharArray()){
+            if (c>=32 && c<=126 || c==10){
+            }else {
+                return c;
+            }
+        }
+        return 0;
+    }
+
+    private ArrayList<SizeClass> getSizeInfo(String getSize){
+        String[] array=getSize.split("\n");
+        String[] getType=array[0].split(" ");
+
+        if(getType.length==6){//바지
+            for(int i=0;i<array.length;i++){
+                String[] getSizeInfo=array[i].split(" ");
+                sizeClass=new SizeClass(getSizeInfo[0]);
+
+                ArrayList<Float> info=new ArrayList<>();
+                for(int j=1;j<getSizeInfo.length;j++){
+                    Float size=Float.parseFloat(getSizeInfo[j]);
+                    if(size>110.0){
+                        size=size/10;
+                    }
+                    info.add(size);
+                }
+
+                sizeClass.setSizeInfo(info);
+                sizeClasses.add(sizeClass);
+            }
+        }
+        return sizeClasses;
+    }
+
+    private void checkFile(File dir,String lang){
+        if(!dir.exists()&&dir.mkdirs()){
+            copyFiles(lang);
+        }
+        if(dir.exists()){
+            String datafilePath = dataPath + "/tessdata/"+lang + ".traineddata";
+            File datafile= new File(datafilePath);
+            if(!datafile.exists()){
+                copyFiles(lang);
+            }
+        }
+    }
+
+    private void copyFiles(String lang) {
+        try {
+            String filepath = dataPath + "/tessdata/" + lang + ".traineddata";
+            AssetManager assetManager = getAssets();
+            InputStream instream = assetManager.open("tessdata/"+lang+".traineddata");
+            OutputStream outstream = new FileOutputStream(filepath);
+            byte[] buffer = new byte[1024];
+            int read;
+            while ((read = instream.read(buffer)) != -1) {
+                outstream.write(buffer, 0, read);
+            }
+            outstream.flush();
+            outstream.close();
+            instream.close();
+
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private Bitmap ARGBBitmap(Bitmap img) {
+        return img.copy(Bitmap.Config.ARGB_8888,true);
     }
 }
 
