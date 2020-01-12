@@ -87,7 +87,11 @@ public class MainActivity extends AppCompatActivity {
 
                 ArrayList<Float> info=new ArrayList<>();
                 for(int j=1;j<getSizeInfo.length;j++){
-                    info.add(Float.parseFloat(getSizeInfo[j]));
+                    Float size=Float.parseFloat(getSizeInfo[j]);
+                    if(size>110.0){
+                        size=size/10;
+                    }
+                    info.add(size);
                 }
 
                 sizeClass.setSizeInfo(info);
